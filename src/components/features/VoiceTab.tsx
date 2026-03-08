@@ -174,19 +174,18 @@ export default function VoiceTab() {
     try {
       setIsSpeaking(true);
       
-      // Call external TTS API with pitch parameter
-      const pitch = 1.2; // Higher pitch for feminine voice
-      const ttsUrl = `https://apis.prexzyvilla.site/tts/tts-adult-female--1-american-english-truvoice?text=${encodeURIComponent(text)}&pitch=${pitch}`;
-      
-      const response = await fetch(ttsUrl);
-      
-      if (!response.ok) {
-        throw new Error('TTS API request failed');
+      // Call ElevenLabs TTS Edge Function
+      const { data, error } = await supabase.functions.invoke('tts-elevenlabs', {
+        body: { text }
+      });
+
+      if (error) {
+        console.error('TTS Error:', error);
+        throw error;
       }
       
-      // Get audio blob
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
+      // The response is the audio blob
+      const audioUrl = URL.createObjectURL(data);
       
       // Play audio
       const audio = new Audio(audioUrl);
