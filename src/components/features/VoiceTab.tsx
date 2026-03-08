@@ -174,7 +174,9 @@ export default function VoiceTab() {
     try {
       setIsSpeaking(true);
       
-      // Call ElevenLabs TTS Edge Function
+      console.log('Generating speech for:', text.substring(0, 50));
+      
+      // Call ElevenLabs TTS Edge Function with faster processing
       const { data, error } = await supabase.functions.invoke('tts-elevenlabs', {
         body: { text }
       });
@@ -184,21 +186,25 @@ export default function VoiceTab() {
         throw error;
       }
       
-      // The response is the audio blob
+      // The response is the audio blob - play immediately
       const audioUrl = URL.createObjectURL(data);
       
-      // Play audio
       const audio = new Audio(audioUrl);
+      audio.playbackRate = 1.05; // Slightly faster playback
+      
       audio.onended = () => {
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
       };
-      audio.onerror = () => {
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
       };
       
+      // Start playing immediately
       await audio.play();
+      console.log('Audio started playing');
     } catch (error) {
       console.error('TTS Error:', error);
       setIsSpeaking(false);

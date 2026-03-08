@@ -49,7 +49,9 @@ export default function ChatTab() {
       
       setIsSpeaking(true);
       
-      // Call ElevenLabs TTS Edge Function
+      console.log('Generating speech for:', text.substring(0, 50));
+      
+      // Call ElevenLabs TTS Edge Function with optimized settings
       const { data, error } = await supabase.functions.invoke('tts-elevenlabs', {
         body: { text }
       });
@@ -59,10 +61,11 @@ export default function ChatTab() {
         throw error;
       }
       
-      // The response is the audio blob
+      // The response is the audio blob - process immediately
       const audioUrl = URL.createObjectURL(data);
       
       const audio = new Audio(audioUrl);
+      audio.playbackRate = 1.05; // Slightly faster playback
       currentAudioRef.current = audio;
       
       audio.onended = () => {
@@ -70,13 +73,16 @@ export default function ChatTab() {
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
       };
-      audio.onerror = () => {
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
       };
       
+      // Start playing immediately
       await audio.play();
+      console.log('Audio started playing');
     } catch (error) {
       console.error('TTS Error:', error);
       setIsSpeaking(false);

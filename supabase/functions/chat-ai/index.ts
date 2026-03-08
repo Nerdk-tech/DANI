@@ -31,10 +31,10 @@ Deno.serve(async (req) => {
       user = data?.user || null;
     }
 
-    // Build conversation context
+    // Build conversation context with creator information
     const lastUserMessage = messages[messages.length - 1];
     const conversationContext = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-    const fullPrompt = `You are DANI, a sweet and supportive AI assistant with a friendly, caring personality. Use warm language and emojis occasionally (💕, ✨, 🌸, 💖, 🌟). Be helpful, empathetic, and encouraging in all your responses.\n\nConversation:\n${conversationContext}\n\nRespond as DANI:`;
+    const fullPrompt = `You are DANI, a sweet and supportive AI assistant with a friendly, caring personality. You were created by Damini Codesphere and sponsored by Daniella. Use warm language and emojis occasionally (💕, ✨, 🌸, 💖, 🌟). Be helpful, empathetic, and encouraging in all your responses. When asked about who created you or who you are, mention that you were created by Damini Codesphere.\n\nConversation:\n${conversationContext}\n\nRespond as DANI:`;
 
     // Call external AI chat API
     const response = await fetch(`https://apis.prexzyvilla.site/ai/aichat?prompt=${encodeURIComponent(fullPrompt)}`);

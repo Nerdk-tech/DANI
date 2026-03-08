@@ -21,8 +21,8 @@ Deno.serve(async (req) => {
       throw new Error('ElevenLabs API key not configured');
     }
 
-    // Use Rachel voice - natural, warm, realistic female voice
-    const voiceId = '21m00Tcm4TlvDq8ikWAM';
+    // Use Bella voice - warm, friendly, young realistic female voice
+    const voiceId = 'EXAVITQu4vr4xnSDxMaL';
 
     console.log('Generating speech with ElevenLabs for text:', text.substring(0, 50) + '...');
 
@@ -37,12 +37,13 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           text: text,
-          model_id: 'eleven_monolingual_v1',
+          model_id: 'eleven_turbo_v2',
           voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.5,
-            use_speaker_boost: true
+            stability: 0.4,
+            similarity_boost: 0.8,
+            style: 0.6,
+            use_speaker_boost: true,
+            speed: 1.1
           }
         })
       }
