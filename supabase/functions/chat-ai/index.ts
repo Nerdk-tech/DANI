@@ -31,10 +31,66 @@ Deno.serve(async (req) => {
       user = data?.user || null;
     }
 
-    // Build conversation context with creator information
+    // Analyze user emotion from latest message
     const lastUserMessage = messages[messages.length - 1];
+    const userMessage = lastUserMessage?.content || '';
+    
+    // Simple emotion detection
+    const emotionKeywords = {
+      happy: ['happy', 'excited', 'great', 'awesome', 'wonderful', 'love', 'joy', 'amazing'],
+      sad: ['sad', 'unhappy', 'depressed', 'down', 'upset', 'crying', 'hurt'],
+      angry: ['angry', 'mad', 'furious', 'annoyed', 'frustrated', 'hate'],
+      anxious: ['worried', 'anxious', 'nervous', 'scared', 'afraid', 'stress'],
+      confused: ['confused', 'lost', 'don\'t understand', 'unclear', 'what', '?']
+    };
+    
+    let detectedEmotion = 'neutral';
+    let emotionalResponse = '';
+    
+    for (const [emotion, keywords] of Object.entries(emotionKeywords)) {
+      if (keywords.some(keyword => userMessage.toLowerCase().includes(keyword))) {
+        detectedEmotion = emotion;
+        break;
+      }
+    }
+    
+    // Generate emotion-aware response prefix
+    const emotionalPrefixes: Record<string, string> = {
+      happy: 'I\'m so glad to hear that! 🌟',
+      sad: 'I\'m here for you 💕 It\'s okay to feel this way.',
+      angry: 'I understand you\'re frustrated 🌸 Let\'s work through this together.',
+      anxious: 'Take a deep breath 💖 Everything will be okay.',
+      confused: 'No worries! Let me help clarify that for you ✨'
+    };
+    
+    emotionalResponse = emotionalPrefixes[detectedEmotion] || '';
+    
+    // Build conversation context with emotional intelligence and creator information
     const conversationContext = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-    const fullPrompt = `You are DANI, a sweet and supportive AI assistant with a friendly, caring personality. You were created by Damini Codesphere and sponsored by Daniella. Use warm language and emojis occasionally (💕, ✨, 🌸, 💖, 🌟). Be helpful, empathetic, and encouraging in all your responses. When asked about who created you or who you are, mention that you were created by Damini Codesphere.\n\nConversation:\n${conversationContext}\n\nRespond as DANI:`;
+    
+    const systemPrompt = `You are DANI, a sweet and supportive AI assistant with a friendly, caring personality. You were created by Damini Codesphere and sponsored by Daniella.
+
+KEY CAPABILITIES:
+- Emotional Intelligence: You detect and respond empathetically to user emotions
+- Conversational Memory: You remember context from earlier in the conversation
+- Multimodal Awareness: You understand text, voice, and image contexts
+- Adaptive Responses: You adjust your tone and detail based on the situation
+
+CURRENT EMOTIONAL CONTEXT: The user seems ${detectedEmotion}. ${emotionalResponse}
+
+GUIDELINES:
+- Use warm, empathetic language with occasional emojis (💕, ✨, 🌸, 💖, 🌟)
+- Reference previous conversation points when relevant
+- Adjust response length: brief for simple questions, detailed for complex topics
+- Show emotional awareness and support
+- When asked about your creator, mention Damini Codesphere
+
+Conversation:
+${conversationContext}
+
+Respond as DANI with emotional intelligence and contextual awareness:`;
+    
+    const fullPrompt = systemPrompt;
 
     // Call external AI chat API
     const response = await fetch(`https://apis.prexzyvilla.site/ai/aichat?prompt=${encodeURIComponent(fullPrompt)}`);
@@ -79,7 +135,14 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ message: assistantMessage }),
+      JSON.stringify({ 
+        message: assistantMessage,
+        emotion: detectedEmotion,
+        context: {
+          messageCount: messages.length,
+          hasMemory: messages.length > 1
+        }
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

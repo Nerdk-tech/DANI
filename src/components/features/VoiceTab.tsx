@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Volume2, VolumeX, Play, Square } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Square, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import AnimatedOrb from './AnimatedOrb';
 
 export default function VoiceTab() {
   const [isListening, setIsListening] = useState(false);
@@ -10,6 +11,8 @@ export default function VoiceTab() {
   const [response, setResponse] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [browserSupport, setBrowserSupport] = useState(true);
+  const [emotion, setEmotion] = useState<string>('neutral');
+  const [conversationContext, setConversationContext] = useState<Array<{role: string, content: string}>>([]);
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
@@ -130,12 +133,14 @@ export default function VoiceTab() {
     }
     
     try {
-      // Call AI chat API
+      // Add user message to conversation context
+      const updatedContext = [...conversationContext, { role: 'user', content: text }];
+      setConversationContext(updatedContext);
+      
+      // Call AI chat API with full conversation context
       const { data, error } = await supabase.functions.invoke('chat-ai', {
         body: {
-          messages: [
-            { role: 'user', content: text }
-          ],
+          messages: updatedContext,
           conversationId: null
         }
       });
@@ -155,12 +160,19 @@ export default function VoiceTab() {
       }
 
       const aiResponse = data.message;
-      console.log('AI response:', aiResponse);
+      const detectedEmotion = data.emotion || 'neutral';
+      
+      console.log('AI response:', aiResponse, 'Emotion:', detectedEmotion);
+      
+      // Update emotion and conversation context
+      setEmotion(detectedEmotion);
+      setConversationContext([...updatedContext, { role: 'assistant', content: aiResponse }]);
+      
       setResponse(aiResponse);
       setIsProcessing(false);
       
-      // Speak the response using external TTS API
-      await speakTextWithAPI(aiResponse);
+      // Speak the response with adaptive cadence based on emotion
+      await speakTextWithAPI(aiResponse, detectedEmotion);
     } catch (error) {
       console.error('Error:', error);
       const errorResponse = "Sorry, I had trouble processing that. Please try again! 💕";
@@ -170,7 +182,18 @@ export default function VoiceTab() {
     }
   };
 
-  const speakTextWithAPI = async (text: string) => {
+  const speakTextWithAPI = async (text: string, emotionContext: string = 'neutral') => {
+    // Adaptive cadence based on emotion
+    const speedMultipliers: Record<string, number> = {
+      happy: 1.08,
+      excited: 1.12,
+      sad: 0.95,
+      anxious: 1.02,
+      angry: 1.05,
+      neutral: 1.05
+    };
+    
+    const playbackSpeed = speedMultipliers[emotionContext] || 1.05;
     try {
       setIsSpeaking(true);
       
@@ -190,7 +213,7 @@ export default function VoiceTab() {
       const audioUrl = URL.createObjectURL(data);
       
       const audio = new Audio(audioUrl);
-      audio.playbackRate = 1.05; // Slightly faster playback
+      audio.playbackRate = playbackSpeed; // Adaptive playback based on emotion
       
       audio.onended = () => {
         setIsSpeaking(false);
@@ -294,21 +317,24 @@ export default function VoiceTab() {
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="glass rounded-3xl p-8 md:p-12 border-2 border-white/30 text-center">
-          {/* Voice Visualizer */}
-          <div className="mb-8">
-            <div className="relative w-48 h-48 mx-auto">
-              <div className={`absolute inset-0 rounded-full bg-gradient-to-br from-pink-400 to-purple-600 ${isListening || isSpeaking ? 'animate-pulse-glow' : 'opacity-50'}`}></div>
-              <div className="absolute inset-4 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center">
-                {isListening ? (
-                  <Mic className="w-20 h-20 text-pink-600" />
-                ) : isSpeaking ? (
-                  <Volume2 className="w-20 h-20 text-purple-600" />
-                ) : (
-                  <Mic className="w-20 h-20 text-gray-400" />
-                )}
-              </div>
-            </div>
+          {/* Advanced Animated Orb Visualizer - Like Siri */}
+          <div className="mb-8 flex justify-center">
+            <AnimatedOrb 
+              isListening={isListening}
+              isSpeaking={isSpeaking}
+              isProcessing={isProcessing}
+            />
           </div>
+          
+          {/* Emotion Indicator */}
+          {emotion !== 'neutral' && (
+            <div className="mb-4 flex items-center justify-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-500" />
+              <span className="text-sm font-medium text-gray-600 capitalize">
+                Emotion detected: {emotion}
+              </span>
+            </div>
+          )}
 
           {/* Status */}
           <div className="mb-6">
@@ -373,9 +399,16 @@ export default function VoiceTab() {
             )}
           </div>
 
-          <p className="text-sm text-gray-500 mt-6">
-            Speak naturally and I'll respond with my voice 💕
-          </p>
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-sm text-gray-500">
+              Speak naturally and I'll respond with emotional intelligence 💕
+            </p>
+            {conversationContext.length > 0 && (
+              <p className="text-xs text-gray-400">
+                Conversation memory: {conversationContext.length} messages
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

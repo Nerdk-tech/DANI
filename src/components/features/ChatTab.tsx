@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Plus, History, Trash2, Volume2 } from 'lucide-react';
+import { Send, Sparkles, Plus, History, Trash2, Volume2, Heart, Frown, Smile, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { useConversations } from '@/hooks/useConversations';
@@ -16,6 +16,8 @@ export default function ChatTab() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentEmotion, setCurrentEmotion] = useState<string>('neutral');
+  const [messageCount, setMessageCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -199,6 +201,14 @@ export default function ChatTab() {
         timestamp: new Date()
       };
 
+      // Update emotion and context from AI response
+      if (data.emotion) {
+        setCurrentEmotion(data.emotion);
+      }
+      if (data.context?.messageCount) {
+        setMessageCount(data.context.messageCount);
+      }
+
       setMessages(prev => [...prev, assistantMessage]);
       
       // Auto-play TTS for assistant response
@@ -301,13 +311,13 @@ export default function ChatTab() {
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
             >
               <div
-                className={`max-w-[70%] rounded-2xl px-6 py-3 ${
+                className={`max-w-[70%] rounded-2xl px-6 py-3 transform transition-all duration-300 hover:scale-[1.02] ${
                   message.role === 'user'
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white'
-                    : 'glass border-2 border-white/30 text-gray-800'
+                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+                    : 'glass border-2 border-white/30 text-gray-800 shadow-md'
                 }`}
               >
                 <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
@@ -333,8 +343,22 @@ export default function ChatTab() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Emotional Context Bar */}
+        {currentEmotion !== 'neutral' && (
+          <div className="mb-3 glass rounded-2xl px-4 py-2 border border-white/30 flex items-center gap-3 animate-fade-in">
+            {currentEmotion === 'happy' && <Smile className="w-5 h-5 text-yellow-500" />}
+            {currentEmotion === 'sad' && <Frown className="w-5 h-5 text-blue-500" />}
+            {currentEmotion === 'anxious' && <Zap className="w-5 h-5 text-orange-500" />}
+            {(currentEmotion === 'angry' || currentEmotion === 'frustrated') && <Zap className="w-5 h-5 text-red-500" />}
+            <span className="text-sm text-gray-600">
+              I sense you're feeling <span className="font-semibold capitalize">{currentEmotion}</span>
+            </span>
+            <Heart className="w-4 h-4 text-pink-500 ml-auto" />
+          </div>
+        )}
+        
         {/* Input Area */}
-        <div className="glass rounded-3xl p-2 border-2 border-white/30">
+        <div className="glass rounded-3xl p-2 border-2 border-white/30 shadow-lg">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 px-4">
               <Sparkles className="w-5 h-5 text-pink-500" />
@@ -365,9 +389,16 @@ export default function ChatTab() {
           </div>
         </div>
 
-        <p className="text-center text-sm text-gray-500 mt-4">
-          DANI can make mistakes. Consider checking important information.
-        </p>
+        <div className="text-center mt-4 space-y-1">
+          <p className="text-sm text-gray-500">
+            DANI can make mistakes. Consider checking important information.
+          </p>
+          {messageCount > 0 && (
+            <p className="text-xs text-gray-400">
+              Conversational Memory: {messageCount} messages remembered
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
