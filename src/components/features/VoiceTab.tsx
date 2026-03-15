@@ -317,7 +317,7 @@ export default function VoiceTab() {
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="glass rounded-3xl p-8 md:p-12 border-2 border-white/30 text-center">
-          {/* Advanced Animated Orb Visualizer - Like Siri */}
+          {/* Advanced Animated Orb Visualizer */}
           <div className="mb-8 flex justify-center">
             <AnimatedOrb 
               isListening={isListening}

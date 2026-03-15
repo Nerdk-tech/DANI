@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home } from 'lucide-react';
+import { Home, Code } from 'lucide-react';
 import daniLogo from '@/assets/dani-logo.png';
 import ChatTab from '@/components/features/ChatTab';
 import ImageTab from '@/components/features/ImageTab';
 import VoiceTab from '@/components/features/VoiceTab';
+import WebsiteTab from '@/components/features/WebsiteTab';
 
 export default function ChatPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'chat' | 'image' | 'voice'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'image' | 'voice' | 'website'>('chat');
 
   useEffect(() => {
     // Listen for voice command events
@@ -64,6 +65,17 @@ export default function ChatPage() {
             >
               Voice
             </button>
+            <button
+              onClick={() => setActiveTab('website')}
+              className={`px-6 py-2 rounded-full font-medium transition-all ${
+                activeTab === 'website'
+                  ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              <Code className="w-4 h-4 inline mr-1" />
+              Create
+            </button>
           </div>
 
           <button
@@ -81,6 +93,7 @@ export default function ChatPage() {
         {activeTab === 'chat' && <ChatTab />}
         {activeTab === 'image' && <ImageTab />}
         {activeTab === 'voice' && <VoiceTab />}
+        {activeTab === 'website' && <WebsiteTab />}
       </div>
     </div>
   );
