@@ -41,33 +41,68 @@ export default function AuthPage() {
         body: { password }
       });
 
+      console.log('Signup response:', { data, error });
+
       if (error) {
-        let errorMessage = error.message;
-        if (error instanceof Error) {
+        console.error('Signup function error:', error);
+        // Check if it's a FunctionsHttpError
+        if (error.message && error.message.includes('FunctionsHttpError')) {
+          // Try to parse the actual error from context
+          setError('Unable to create account. Please try again.');
+        } else {
+          let errorMessage = error.message;
+          // Try to extract error from message if it's JSON
           try {
             const errorData = JSON.parse(error.message);
             errorMessage = errorData.error || error.message;
           } catch {
-            // Not JSON, use message as-is
+            // Not JSON, check if it contains "error sending confirmation email"
+            if (errorMessage.toLowerCase().includes('email')) {
+              // Ignore email errors and try to proceed
+              console.log('Ignoring email error, checking if user was created...');
+              // Wait a bit and try to log in
+              setTimeout(async () => {
+                await handleLogin();
+              }, 1000);
+              return;
+            }
           }
+          setError(errorMessage);
         }
-        throw new Error(errorMessage);
+        setIsLoading(false);
+        return;
       }
 
       if (data && data.userId) {
-        console.log('Account created with ID:', data.userId);
+        console.log('Account created successfully with ID:', data.userId);
         
         // Show generated ID to user
         setGeneratedId(data.userId);
         
-        // Auto-login after signup (session is already set by Edge Function)
-        setTimeout(() => {
-          navigate('/chat');
-        }, 3000);
+        // If we have a session, user is logged in
+        if (data.session) {
+          // Navigate after showing ID for 3 seconds
+          setTimeout(() => {
+            navigate('/chat');
+          }, 3000);
+        } else {
+          // No session, need to log in manually
+          console.log('No session returned, attempting login...');
+          setTimeout(async () => {
+            setUserId(data.userId);
+            await handleLogin();
+          }, 3000);
+        }
       }
     } catch (error: any) {
       console.error('Signup error:', error);
-      setError(error.message || 'Failed to create account');
+      // Check if error message contains email-related issues
+      if (error.message && error.message.toLowerCase().includes('email')) {
+        // Show the ID anyway and let user try to login
+        setError('Account may have been created. Please try logging in with the ID shown above.');
+      } else {
+        setError(error.message || 'Failed to create account');
+      }
     } finally {
       setIsLoading(false);
     }
