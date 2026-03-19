@@ -70,10 +70,28 @@ export default function AuthPage() {
       }
 
       if (data && data.session) {
-        console.log('Account created successfully, logging in...');
-        navigate('/chat');
+        console.log('Account created successfully, setting session...');
+        
+        // Set the session in Supabase client to auto-login
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        });
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setError('Account created but unable to log in. Please refresh the page.');
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('Session set, redirecting to dashboard...');
+        // Small delay to ensure auth state updates
+        setTimeout(() => {
+          navigate('/chat');
+        }, 100);
       } else {
-        setError('Account created but unable to log in automatically. Please refresh the page.');
+        setError('Account created. Please refresh the page to continue.');
         setIsLoading(false);
       }
     } catch (error: any) {

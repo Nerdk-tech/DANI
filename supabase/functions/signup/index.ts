@@ -33,15 +33,46 @@ serve(async (req) => {
     );
 
     console.log('Creating user account...');
-    // Use standard signUp - it will trigger the database triggers automatically
+    
+    // Use service role to create and auto-confirm user via SQL
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // First check if user already exists
+    const { data: existingUsers } = await supabaseAdmin
+      .from('auth.users')
+      .select('email')
+      .eq('email', email)
+      .limit(1);
+
+    if (existingUsers && existingUsers.length > 0) {
+      console.log('User already exists, attempting to sign in...');
+      const { data: existingSession, error: existingSignInError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (!existingSignInError && existingSession) {
+        return new Response(
+          JSON.stringify({
+            session: existingSession.session,
+            user: existingSession.user
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Create new user with standard signup
     const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
       email,
       password,
       options: {
         data: {
           username: email.split('@')[0],
-        },
-        emailRedirectTo: undefined, // Don't send confirmation email
+        }
       }
     });
 
@@ -53,66 +84,39 @@ serve(async (req) => {
       );
     }
 
-    console.log('User created, attempting to sign in...');
+    console.log('User created, auto-confirming email via SQL...');
+    
+    // Use service role to confirm email directly via SQL
+    const { error: confirmError } = await supabaseAdmin.rpc('confirm_user_email', { 
+      user_email: email 
+    });
 
-    // Try to sign in immediately
+    if (confirmError) {
+      console.error('Email confirmation error:', confirmError);
+      // Continue anyway, try to sign in
+    } else {
+      console.log('Email confirmed successfully');
+    }
+
+    // Wait a moment for the confirmation to process
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Now sign in with the confirmed account
+    console.log('Signing in with confirmed account...');
     const { data: sessionData, error: signInError } = await supabaseClient.auth.signInWithPassword({
       email,
       password
     });
 
-    // If sign in fails due to unconfirmed email, use service role to confirm
-    if (signInError && signInError.message.includes('Email not confirmed')) {
-      console.log('Email not confirmed, using database direct update...');
-      
-      // Use service role to update the user's email confirmation
-      const supabaseAdmin = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-
-      // Update user via SQL to confirm email
-      const { error: updateError } = await supabaseAdmin.rpc('confirm_user_email', { 
-        user_email: email 
-      });
-
-      if (updateError) {
-        console.error('Email confirmation error:', updateError);
-      }
-
-      // Try signing in again
-      const { data: retrySessionData, error: retrySignInError } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (retrySignInError) {
-        console.error('Retry sign in error:', retrySignInError);
-        return new Response(
-          JSON.stringify({ error: 'Account created. Please try logging in again.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log('Signup completed successfully after confirmation');
-      return new Response(
-        JSON.stringify({
-          session: retrySessionData.session,
-          user: retrySessionData.user
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     if (signInError) {
       console.error('Sign in error:', signInError);
       return new Response(
-        JSON.stringify({ error: 'Account created. Please try logging in again.' }),
+        JSON.stringify({ error: 'Account created but unable to sign in automatically. Please refresh the page.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Signup completed successfully');
+    console.log('Signup and sign-in completed successfully');
     return new Response(
       JSON.stringify({
         session: sessionData.session,
