@@ -34,31 +34,33 @@ export default function AuthPage() {
     setError('');
 
     try {
-      // Generate unique ID
-      const newUserId = generateUserId();
-      const email = `${newUserId}@dani.app`; // Create fake email for Supabase
+      console.log('Creating account...');
 
-      console.log('Creating account with ID:', newUserId);
-
-      // Create account with Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username: newUserId,
-            display_id: newUserId
-          }
-        }
+      // Create account via Edge Function (no email confirmation needed)
+      const { data, error } = await supabase.functions.invoke('signup', {
+        body: { password }
       });
 
-      if (error) throw error;
+      if (error) {
+        let errorMessage = error.message;
+        if (error instanceof Error) {
+          try {
+            const errorData = JSON.parse(error.message);
+            errorMessage = errorData.error || error.message;
+          } catch {
+            // Not JSON, use message as-is
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
-      if (data.user) {
-        // Show generated ID to user
-        setGeneratedId(newUserId);
+      if (data && data.userId) {
+        console.log('Account created with ID:', data.userId);
         
-        // Auto-login after signup
+        // Show generated ID to user
+        setGeneratedId(data.userId);
+        
+        // Auto-login after signup (session is already set by Edge Function)
         setTimeout(() => {
           navigate('/chat');
         }, 3000);
