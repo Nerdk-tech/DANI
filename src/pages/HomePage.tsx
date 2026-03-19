@@ -33,10 +33,10 @@ export default function HomePage() {
             <img src={daniLogo} alt="DANI" className="h-10 w-auto" />
           </div>
           <button
-            onClick={() => navigate('/chat')}
+            onClick={() => navigate('/auth')}
             className="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full font-medium hover:from-pink-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
           >
-            Start Chatting
+            Get Started
           </button>
         </div>
       </header>
@@ -64,10 +64,10 @@ export default function HomePage() {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={() => navigate('/chat')}
+                onClick={() => navigate('/auth')}
                 className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-lg rounded-full font-semibold hover:from-pink-600 hover:to-purple-700 transition-all shadow-xl hover:shadow-2xl transform hover:scale-105"
               >
-                Start Conversation
+                Get Started
               </button>
               <button
                 onClick={() => {
@@ -122,10 +122,10 @@ export default function HomePage() {
               Start your conversation now and experience sweet, supportive AI assistance
             </p>
             <button
-              onClick={() => navigate('/chat')}
+              onClick={() => navigate('/auth')}
               className="px-10 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-lg rounded-full font-semibold hover:from-pink-600 hover:to-purple-700 transition-all shadow-xl hover:shadow-2xl transform hover:scale-105"
             >
-              Launch DANI
+              Get Started
             </button>
           </div>
         </div>
