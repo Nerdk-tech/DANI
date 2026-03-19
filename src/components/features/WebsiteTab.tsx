@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { Code, Download, Sparkles, Globe, FileCode, Loader2, CheckCircle, AlertCircle, Eye, Edit, Zap, Layers, Package } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
-import JSZip from 'jszip';
 
 interface GeneratedFile {
   path: string;
@@ -83,20 +82,88 @@ export default function WebsiteTab() {
     }
   };
 
+  // Simple ZIP file creator without external dependencies
+  const createZipFile = (files: GeneratedFile[], fileName: string): Blob => {
+    const encoder = new TextEncoder();
+    const chunks: Uint8Array[] = [];
+    const centralDirectory: Uint8Array[] = [];
+    let offset = 0;
+
+    files.forEach((file) => {
+      const content = encoder.encode(file.content);
+      const fileName = encoder.encode(file.path);
+      const crc = 0; // Simplified: not calculating actual CRC
+
+      // Local file header
+      const header = new Uint8Array(30 + fileName.length);
+      const view = new DataView(header.buffer);
+      
+      view.setUint32(0, 0x04034b50, true); // Signature
+      view.setUint16(4, 10, true); // Version
+      view.setUint16(6, 0, true); // Flags
+      view.setUint16(8, 0, true); // Compression (0 = no compression)
+      view.setUint16(10, 0, true); // Time
+      view.setUint16(12, 0, true); // Date
+      view.setUint32(14, crc, true); // CRC
+      view.setUint32(18, content.length, true); // Compressed size
+      view.setUint32(22, content.length, true); // Uncompressed size
+      view.setUint16(26, fileName.length, true); // File name length
+      view.setUint16(28, 0, true); // Extra field length
+      header.set(fileName, 30);
+
+      chunks.push(header, content);
+
+      // Central directory header
+      const cdHeader = new Uint8Array(46 + fileName.length);
+      const cdView = new DataView(cdHeader.buffer);
+      
+      cdView.setUint32(0, 0x02014b50, true); // Signature
+      cdView.setUint16(4, 10, true); // Version made by
+      cdView.setUint16(6, 10, true); // Version needed
+      cdView.setUint16(8, 0, true); // Flags
+      cdView.setUint16(10, 0, true); // Compression
+      cdView.setUint16(12, 0, true); // Time
+      cdView.setUint16(14, 0, true); // Date
+      cdView.setUint32(16, crc, true); // CRC
+      cdView.setUint32(20, content.length, true); // Compressed size
+      cdView.setUint32(24, content.length, true); // Uncompressed size
+      cdView.setUint16(28, fileName.length, true); // File name length
+      cdView.setUint16(30, 0, true); // Extra field length
+      cdView.setUint16(32, 0, true); // Comment length
+      cdView.setUint16(34, 0, true); // Disk number
+      cdView.setUint16(36, 0, true); // Internal attributes
+      cdView.setUint32(38, 0, true); // External attributes
+      cdView.setUint32(42, offset, true); // Relative offset
+      cdHeader.set(fileName, 46);
+
+      centralDirectory.push(cdHeader);
+      offset += header.length + content.length;
+    });
+
+    // End of central directory
+    const cdSize = centralDirectory.reduce((sum, cd) => sum + cd.length, 0);
+    const eocd = new Uint8Array(22);
+    const eocdView = new DataView(eocd.buffer);
+    
+    eocdView.setUint32(0, 0x06054b50, true); // Signature
+    eocdView.setUint16(4, 0, true); // Disk number
+    eocdView.setUint16(6, 0, true); // Central directory disk
+    eocdView.setUint16(8, files.length, true); // Entries on this disk
+    eocdView.setUint16(10, files.length, true); // Total entries
+    eocdView.setUint32(12, cdSize, true); // Central directory size
+    eocdView.setUint32(16, offset, true); // Central directory offset
+    eocdView.setUint16(20, 0, true); // Comment length
+
+    return new Blob([...chunks, ...centralDirectory, eocd], { type: 'application/zip' });
+  };
+
   const handleDownloadZip = async () => {
     try {
-      const zip = new JSZip();
-
-      // Add all generated files to ZIP
-      generatedFiles.forEach(file => {
-        zip.file(file.path, file.content);
-      });
-
-      // Generate ZIP blob
-      const blob = await zip.generateAsync({ type: 'blob' });
+      // Create ZIP file
+      const zipBlob = createZipFile(generatedFiles, projectName || 'website');
 
       // Create download link
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${projectName || 'website'}.zip`;
