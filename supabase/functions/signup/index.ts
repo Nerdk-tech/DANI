@@ -20,105 +20,99 @@ serve(async (req) => {
       );
     }
 
-    // Generate unique email
+    // Generate unique email using a valid domain
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 15);
-    const email = `dani_${timestamp}_${random}@dani.app`;
+    const email = `dani_${timestamp}_${random}@example.com`;
     console.log('Generated email:', email);
 
-    // Create admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    console.log('Creating user with admin API...');
-    // Create user with admin API - completely bypass email confirmation
-    const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm - no email sent
-      app_metadata: {
-        provider: 'email',
-        providers: ['email']
-      }
-    });
-
-    if (createError) {
-      console.error('User creation error:', createError);
-      // If error is about email sending, ignore it and continue if user was created
-      if (createError.message.includes('email') && userData?.user) {
-        console.log('Email error ignored, user created successfully');
-      } else {
-        return new Response(
-          JSON.stringify({ error: createError.message }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    console.log('User created successfully, generating session...');
-
-    // Generate a session token for the user using admin API
-    const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-    });
-
-    if (tokenError) {
-      console.error('Token generation error:', tokenError);
-      // Fall back to regular sign in
-      console.log('Falling back to password sign in...');
-      
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-      );
-
-      const { data: sessionData, error: signInError } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (signInError) {
-        console.error('Sign in error:', signInError);
-        return new Response(
-          JSON.stringify({ error: 'Account created but login failed. Please try logging in manually.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log('Signup completed successfully');
-      return new Response(
-        JSON.stringify({
-          session: sessionData.session,
-          user: sessionData.user
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Signup completed successfully, signing in user...');
-    
-    // Sign in the user to get a session
+    // Create client with anon key for standard signup
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
+    console.log('Creating user account...');
+    // Use standard signUp - it will trigger the database triggers automatically
+    const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username: email.split('@')[0],
+        },
+        emailRedirectTo: undefined, // Don't send confirmation email
+      }
+    });
+
+    if (signUpError) {
+      console.error('Signup error:', signUpError);
+      return new Response(
+        JSON.stringify({ error: signUpError.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('User created, attempting to sign in...');
+
+    // Try to sign in immediately
     const { data: sessionData, error: signInError } = await supabaseClient.auth.signInWithPassword({
       email,
       password
     });
 
-    if (signInError) {
-      console.error('Auto sign-in error:', signInError);
+    // If sign in fails due to unconfirmed email, use service role to confirm
+    if (signInError && signInError.message.includes('Email not confirmed')) {
+      console.log('Email not confirmed, using database direct update...');
+      
+      // Use service role to update the user's email confirmation
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+
+      // Update user via SQL to confirm email
+      const { error: updateError } = await supabaseAdmin.rpc('confirm_user_email', { 
+        user_email: email 
+      });
+
+      if (updateError) {
+        console.error('Email confirmation error:', updateError);
+      }
+
+      // Try signing in again
+      const { data: retrySessionData, error: retrySignInError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (retrySignInError) {
+        console.error('Retry sign in error:', retrySignInError);
+        return new Response(
+          JSON.stringify({ error: 'Account created. Please try logging in again.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('Signup completed successfully after confirmation');
       return new Response(
-        JSON.stringify({ error: 'Account created but auto-login failed. Please refresh the page.' }),
+        JSON.stringify({
+          session: retrySessionData.session,
+          user: retrySessionData.user
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (signInError) {
+      console.error('Sign in error:', signInError);
+      return new Response(
+        JSON.stringify({ error: 'Account created. Please try logging in again.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('Signup completed successfully');
     return new Response(
       JSON.stringify({
         session: sessionData.session,

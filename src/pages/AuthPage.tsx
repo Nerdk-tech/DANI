@@ -46,7 +46,25 @@ export default function AuthPage() {
 
       if (error) {
         console.error('Signup function error:', error);
-        setError('Unable to create account. Please try again.');
+        
+        // Extract meaningful error message
+        let errorMsg = 'Unable to create account. Please try again.';
+        if (error.message) {
+          errorMsg = error.message;
+        }
+        if (error.context) {
+          try {
+            const errorText = await error.context.text();
+            if (errorText) {
+              const errorData = JSON.parse(errorText);
+              errorMsg = errorData.error || errorMsg;
+            }
+          } catch (e) {
+            console.error('Error parsing error context:', e);
+          }
+        }
+        
+        setError(errorMsg);
         setIsLoading(false);
         return;
       }
@@ -56,11 +74,11 @@ export default function AuthPage() {
         navigate('/chat');
       } else {
         setError('Account created but unable to log in automatically. Please refresh the page.');
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error('Signup error:', error);
       setError(error.message || 'Failed to create account');
-    } finally {
       setIsLoading(false);
     }
   };
