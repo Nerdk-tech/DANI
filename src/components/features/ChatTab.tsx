@@ -5,21 +5,8 @@ import { FunctionsHttpError } from '@supabase/supabase-js';
 import { useConversations } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
 import type { Message } from '@/types';
-
-// 🖼️ Enhanced Image helpers
-const isImagePrompt = (text: string) => {
-  const lower = text.toLowerCase();
-  return lower.startsWith('draw') || lower.startsWith('generate') || lower.includes('image of');
-};
-
-const formatImageApiUrl = (userInput: string) => {
-  const cleanPrompt = userInput
-    .replace(/^(draw|generate|create|make|show me)\s+(an?|a)\s+(image|picture|photo)\s+of\s+/i, '')
-    .replace(/^(draw|generate|image of)\s+/i, '')
-    .trim();
-    
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&nologo=true`;
-};
+// Import your helper functions
+import { isImagePrompt, formatImageApiUrl, downloadImage } from '@/lib/image-gen';
 
 export default function ChatTab() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -52,23 +39,6 @@ export default function ChatTab() {
         content: "Hi! I'm DANI, your sweet and supportive AI assistant! 💕 How can I help you today?",
         timestamp: new Date()
       }]);
-    }
-  };
-
-  const handleDownload = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      console.error('Download failed:', error);
     }
   };
 
@@ -153,12 +123,13 @@ export default function ChatTab() {
     setInput('');
     setIsTyping(true);
 
+    // Check if it's an image prompt using your image-gen.ts logic
     if (isImagePrompt(userInput)) {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         type: 'image',
-        content: formatImageApiUrl(userInput),
+        content: formatImageApiUrl(userInput), // This now uses your realistic endpoint
         prompt: userInput,
         timestamp: new Date()
       };
@@ -248,7 +219,7 @@ export default function ChatTab() {
                     <div className="relative group rounded-xl overflow-hidden border border-white/50 shadow-md bg-gray-100/50">
                       <img src={message.content} alt={message.prompt} className="w-full h-auto object-cover" />
                       <button 
-                        onClick={() => handleDownload(message.content, `DANI-${Date.now()}.jpg`)}
+                        onClick={() => downloadImage(message.content, message.prompt || 'DANI-Image')}
                         className="absolute bottom-2 right-2 p-2 bg-black/50 hover:bg-pink-500 text-white rounded-full backdrop-blur-md transition-all opacity-0 group-hover:opacity-100 shadow-lg"
                       >
                         <Download className="w-4 h-4" />
@@ -287,6 +258,8 @@ export default function ChatTab() {
           {currentEmotion !== 'neutral' && (
             <div className="glass rounded-2xl px-4 py-2 border border-white/40 flex items-center gap-3 animate-fade-in shadow-sm">
               {currentEmotion === 'happy' && <Smile className="w-5 h-5 text-yellow-500" />}
+              {currentEmotion === 'sad' && <Frown className="w-5 h-5 text-blue-500" />}
+              {currentEmotion === 'anxious' && <Zap className="w-5 h-5 text-orange-500" />}
               <span className="text-sm text-gray-600 font-medium">I sense you're feeling <span className="text-pink-600 capitalize">{currentEmotion}</span></span>
               <Heart className="w-4 h-4 text-pink-400 ml-auto animate-pulse" />
             </div>
@@ -314,16 +287,13 @@ export default function ChatTab() {
             )}
           </div>
 
-          {/* Replaced Version footer with original footer content */}
           <div className="text-center space-y-1">
             <p className="text-[11px] text-gray-500 font-medium">
               DANI can make mistakes. Consider checking important information.
             </p>
-            {messageCount > 0 && (
-              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
-                Conversational Memory: {messageCount} messages remembered
-              </p>
-            )}
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
+              Conversational Memory: {messageCount} messages remembered
+            </p>
           </div>
         </div>
       </div>
