@@ -5,7 +5,16 @@ import { FunctionsHttpError } from '@supabase/supabase-js';
 import { useConversations } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
 import type { Message } from '@/types';
+// 🖼️ Image helpers
+const isImagePrompt = (text: string) => {
+  return text.toLowerCase().includes('draw') ||
+         text.toLowerCase().includes('image') ||
+         text.toLowerCase().includes('generate');
+};
 
+const formatImageApiUrl = (prompt: string) => {
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
+};
 export default function ChatTab() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const { messages, setMessages } = useMessages(currentConversationId);
@@ -165,7 +174,23 @@ export default function ChatTab() {
     const userInput = input;
     setInput('');
     setIsTyping(true);
+// 🖼️ IMAGE GENERATION (SAFE INSERT)
+if (isImagePrompt(userInput)) {
+  const imageUrl = formatImageApiUrl(userInput);
 
+  const assistantMessage: Message = {
+    id: (Date.now() + 1).toString(),
+    role: 'assistant',
+    type: 'image',
+    content: imageUrl,
+    prompt: userInput,
+    timestamp: new Date()
+  };
+
+  setMessages(prev => [...prev, assistantMessage]);
+  setIsTyping(false);
+  return; // ⛔ stop here so your AI & TTS don't run
+}
     try {
       // Prepare message history for AI
       const messageHistory = [...messages, userMessage].map(msg => ({
@@ -307,38 +332,55 @@ export default function ChatTab() {
         )}
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto mb-4 space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
-            >
-              <div
-                className={`max-w-[70%] rounded-2xl px-6 py-3 transform transition-all duration-300 hover:scale-[1.02] ${
-                  message.role === 'user'
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
-                    : 'glass border-2 border-white/30 text-gray-800 shadow-md'
-                }`}
-              >
-                <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                <p className={`text-xs mt-1 ${message.role === 'user' ? 'text-pink-100' : 'text-gray-500'}`}>
-                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
-            </div>
-          ))}
-          
-          {isTyping && (
-            <div className="flex justify-start">
-              <div className="glass border-2 border-white/30 rounded-2xl px-6 py-3">
-                <div className="flex gap-2 items-center">
-                  <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
-                </div>
-              </div>
-            </div>
-          )}
+<div className="flex-1 overflow-y-auto mb-4 space-y-4">
+  {messages.map((message) => (
+    <div
+      key={message.id}
+      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
+    >
+      <div
+        className={`max-w-[70%] rounded-2xl px-6 py-3 transform transition-all duration-300 hover:scale-[1.02] ${
+          message.role === 'user'
+            ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+            : 'glass border-2 border-white/30 text-gray-800 shadow-md'
+        }`}
+      >
+        {message.type === 'image' ? (
+          <img
+            src={message.content}
+            alt="Generated"
+            className="rounded-xl"
+          />
+        ) : (
+          <div>
+            <p className="whitespace-pre-wrap leading-relaxed">
+              {message.content}
+            </p>
+
+            <p className={`text-xs mt-1 ${message.role === 'user' ? 'text-pink-100' : 'text-gray-500'}`}>
+              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  ))}
+
+  {/* ✅ Typing animation moved OUTSIDE */}
+  {isTyping && (
+    <div className="flex justify-start">
+      <div className="glass border-2 border-white/30 rounded-2xl px-6 py-3">
+        <div className="flex gap-2 items-center">
+          <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></div>
+          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  <div ref={messagesEndRef} />
+</div>
           
           <div ref={messagesEndRef} />
         </div>
